@@ -59,8 +59,33 @@ impl<T> MyVec<T> {
             self.cap = new_cap;
         }
     }
+
+    fn push(&mut self, elem: T) {
+        if self.len == self.cap {
+            self.grow();
+        }
+
+        unsafe {
+            ptr::write(self.ptr.as_ptr().offset(self.len as isize), elem);
+        }
+
+        self.len += 1;
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        if self.len == 0 {
+            None
+        } else {
+            self.len -= 1;
+            unsafe { Some(ptr::read(self.ptr.as_ptr().offset(self.len as isize))) }
+        }
+    }
 }
 
 fn main() {
-    let vec: MyVec<i32> = MyVec::new();
+    let mut vec: MyVec<i32> = MyVec::new();
+    vec.push(1);
+    if let Some(v) = vec.pop() {
+        println!("v == {}", v);
+    }
 }
