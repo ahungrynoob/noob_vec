@@ -5,7 +5,7 @@ use std::{mem, panic}; // 定义一个 unique类型，满足如下条件： 为�
                        // 拥有类型T的值
                        // 如果T是Send/Sync，那么Unique也是Send/Sync
                        // 指针永远不为空
-use std::alloc::{alloc, handle_alloc_error, realloc, Layout};
+use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
 struct MyVec<T> {
     ptr: Unique<T>,
     cap: usize,
@@ -79,6 +79,24 @@ impl<T> MyVec<T> {
             self.len -= 1;
             unsafe { Some(ptr::read(self.ptr.as_ptr().offset(self.len as isize))) }
         }
+    }
+}
+
+impl<T> Drop for MyVec<T> {
+    fn drop(&mut self) {
+        if self.cap != 0 {
+            while let Some(_) = self.pop() {}
+
+            let align = mem::align_of::<T>();
+            let elem_size = mem::size_of::<T>();
+            let num_bytes = elem_size * self.cap;
+            unsafe {
+                let layout: Layout = Layout::from_size_align_unchecked(num_bytes, align);
+                dealloc(self.ptr.as_ptr() as *mut _, layout);
+            }
+        }
+
+        println!("release memory in drop function!");
     }
 }
 
