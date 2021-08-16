@@ -6,6 +6,8 @@ use std::{mem, panic}; // 定义一个 unique类型，满足如下条件： 为�
                        // 如果T是Send/Sync，那么Unique也是Send/Sync
                        // 指针永远不为空
 use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
+use std::ops::{Deref, DerefMut};
+use std::slice;
 struct MyVec<T> {
     ptr: Unique<T>,
     cap: usize,
@@ -100,10 +102,32 @@ impl<T> Drop for MyVec<T> {
     }
 }
 
+impl<T> Deref for MyVec<T> {
+    type Target = [T];
+    fn deref(&self) -> &[T] {
+        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<T> DerefMut for MyVec<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
+    }
+}
+
 fn main() {
     let mut vec: MyVec<i32> = MyVec::new();
     vec.push(1);
     if let Some(v) = vec.pop() {
         println!("v == {}", v);
+    }
+
+    {
+        let mut vec1: MyVec<i32> = MyVec::new();
+        vec1.push(1);
+        vec1.push(2);
+
+        let s = &vec1[0..];
+        println!("s[0] = {}", s[0]);
     }
 }
