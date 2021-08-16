@@ -116,6 +116,28 @@ impl<T> MyVec<T> {
             result
         }
     }
+
+    fn into_iter(self) -> IntoIter<T> {
+        let ptr = self.ptr;
+        let cap = self.cap;
+        let len = self.len;
+
+        // 确保vec 不会被 drop, 因为那样会释放内存空间
+        mem::forget(self);
+
+        unsafe {
+            IntoIter {
+                buf: ptr,
+                cap: cap,
+                start: ptr.as_ptr(),
+                end: if cap == 0 {
+                    ptr.as_ptr()
+                } else {
+                    ptr.as_ptr().offset(len as isize)
+                },
+            }
+        }
+    }
 }
 
 impl<T> Drop for MyVec<T> {
@@ -149,6 +171,63 @@ impl<T> DerefMut for MyVec<T> {
     }
 }
 
+struct IntoIter<T> {
+    buf: Unique<T>,
+    cap: usize,
+    start: *const T,
+    end: *const T,
+}
+
+impl<T> Drop for IntoIter<T> {
+    fn drop(&mut self) {
+        if self.cap != 0 {
+            for _ in &mut *self {}
+
+            let align = mem::align_of::<T>();
+            let elem_size = mem::size_of::<T>();
+            let num_bytes = elem_size * self.cap;
+
+            unsafe {
+                let layout: Layout = Layout::from_size_align_unchecked(num_bytes, align);
+                dealloc(self.buf.as_ptr() as *mut _, layout);
+            }
+        }
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.end {
+            None
+        } else {
+            unsafe {
+                let result = ptr::read(self.start);
+                self.start = self.start.offset(1);
+                Some(result)
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = (self.end as usize - self.start as usize) / mem::size_of::<T>();
+        (len, Some(len))
+    }
+}
+
+impl<T> DoubleEndedIterator for IntoIter<T> {
+    fn next_back(&mut self) -> Option<T> {
+        if self.start == self.end {
+            None
+        } else {
+            unsafe {
+                self.end = self.end.offset(-1);
+                Some(ptr::read(self.end))
+            }
+        }
+    }
+}
+
 fn main() {
     let mut vec: MyVec<i32> = MyVec::new();
     vec.push(1);
@@ -167,8 +246,25 @@ fn main() {
         // println!("s[0] = {}", s[0]);
 
         vec1.insert(0, 11);
-        while let Some(v) = vec1.pop() {
-            println!("v === {}", v);
+        // while let Some(v) = vec1.pop() {
+        //     println!("v === {}", v);
+        // }
+
+        // 实现了 deref 后，自动就会实现迭代器
+        let iter = vec1.iter();
+        for val in iter {
+            println!("v = {}", val);
         }
+    }
+
+    println!("=====================");
+    let mut vec3: MyVec<i32> = MyVec::new();
+    vec3.push(1);
+    vec3.push(2);
+
+    let iter3 = vec3.into_iter();
+    for mut val in iter3 {
+        val = 111;
+        println!("get val: {}", val);
     }
 }
