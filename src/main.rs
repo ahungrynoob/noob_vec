@@ -82,6 +82,40 @@ impl<T> MyVec<T> {
             unsafe { Some(ptr::read(self.ptr.as_ptr().offset(self.len as isize))) }
         }
     }
+
+    fn insert(&mut self, index: usize, elem: T) {
+        assert!(index <= self.len, "overflow");
+        if self.cap == self.len {
+            self.grow();
+        }
+        unsafe {
+            if index < self.len {
+                ptr::copy(
+                    self.ptr.as_ptr().offset(index as isize),
+                    self.ptr.as_ptr().offset(index as isize + 1),
+                    self.len - index,
+                );
+            }
+            ptr::write(self.ptr.as_ptr().offset(index as isize), elem);
+            self.len += 1;
+        }
+    }
+
+    fn remove(&mut self, index: usize) -> T {
+        assert!(index <= self.len, "overflow");
+        unsafe {
+            self.len -= 1;
+            let result = ptr::read(self.ptr.as_ptr().offset(index as isize));
+
+            ptr::copy(
+                self.ptr.as_ptr().offset(index as isize + 1),
+                self.ptr.as_ptr().offset(index as isize),
+                self.len - index,
+            );
+
+            result
+        }
+    }
 }
 
 impl<T> Drop for MyVec<T> {
@@ -126,8 +160,15 @@ fn main() {
         let mut vec1: MyVec<i32> = MyVec::new();
         vec1.push(1);
         vec1.push(2);
+        let ret = vec1.remove(0);
+        println!("remove {}", ret);
 
-        let s = &vec1[0..];
-        println!("s[0] = {}", s[0]);
+        // let s = &vec1[0..];
+        // println!("s[0] = {}", s[0]);
+
+        vec1.insert(0, 11);
+        while let Some(v) = vec1.pop() {
+            println!("v === {}", v);
+        }
     }
 }
