@@ -201,45 +201,74 @@ impl<'a, T> Drop for Drain<'a, T> {
     }
 }
 
-fn main() {
-    let mut vec: MyVec<i32> = MyVec::new();
-    vec.push(1);
-    if let Some(v) = vec.pop() {
-        println!("v == {}", v);
-    }
+fn main() {}
 
-    {
-        let mut vec1: MyVec<i32> = MyVec::new();
-        vec1.push(1);
-        vec1.push(2);
-        let ret = vec1.remove(0);
-        println!("remove {}", ret);
-
-        // let s = &vec1[0..];
-        // println!("s[0] = {}", s[0]);
-
-        vec1.insert(0, 11);
-        // while let Some(v) = vec1.pop() {
-        //     println!("v === {}", v);
-        // }
-
-        // 实现了 deref 后，自动就会实现迭代器
-        let iter = vec1.iter();
-        for val in iter {
-            println!("v = {}", val);
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    pub fn create_push_pop() {
+        let mut v = MyVec::new();
+        v.push(1);
+        assert_eq!(1, v.len());
+        assert_eq!(1, v[0]);
+        for i in v.iter_mut() {
+            *i += 1;
         }
+        v.insert(0, 5);
+        let x = v.pop();
+        assert_eq!(Some(2), x);
+        assert_eq!(1, v.len());
+        v.push(10);
+        let x = v.remove(0);
+        assert_eq!(5, x);
+        assert_eq!(1, v.len());
+    }
+    #[test]
+    pub fn iter_test() {
+        let mut v = Vec::new();
+        for i in 0..10 {
+            v.push(Box::new(i))
+        }
+        let mut iter = v.into_iter();
+        let first = iter.next().unwrap();
+        let last = iter.next_back().unwrap();
+        drop(iter);
+        assert_eq!(0, *first);
+        assert_eq!(9, *last);
     }
 
-    println!("=====================");
-    let mut vec3: MyVec<i32> = MyVec::new();
-    vec3.push(1);
-    vec3.push(2);
-
-    let iter3 = vec3.into_iter();
-    for mut val in iter3 {
-        val = 111;
-        println!("get val: {}", val);
+    #[test]
+    pub fn test_drain() {
+        let mut v = MyVec::new();
+        for i in 0..10 {
+            v.push(Box::new(i))
+        }
+        {
+            let mut drain = v.drain();
+            let first = drain.next().unwrap();
+            let last = drain.next_back().unwrap();
+            assert_eq!(0, *first);
+            assert_eq!(9, *last);
+        }
+        assert_eq!(0, v.len());
+        v.push(Box::new(1));
+        assert_eq!(1, *v.pop().unwrap());
     }
 
-    println!("!0 = {}", !0);
+    #[test]
+    pub fn test_zst() {
+        let mut v = MyVec::new();
+        for _i in 0..10 {
+            v.push(())
+        }
+
+        let mut count = 0;
+
+        for _ in v.into_iter() {
+            count += 1
+        }
+
+        assert_eq!(10, count);
+    }
 }

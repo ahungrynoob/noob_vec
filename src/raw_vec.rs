@@ -9,18 +9,24 @@ pub struct RawVec<T> {
 
 impl<T> RawVec<T> {
     pub fn new() -> Self {
-        assert!(mem::size_of::<T>() != 0, "TODO:实现零尺寸类型的支持");
+        // !0就是usize::MAX。这段分支代码在编译期就可以计算出结果。
+        let cap = if mem::size_of::<T>() == 0 { !0 } else { 0 };
         RawVec {
             ptr: Unique::dangling(),
-            cap: 0,
+            cap,
         }
     }
 
     pub fn grow(&mut self) {
         unsafe {
             // 获取到T类型的对齐方式
-            let align = mem::align_of::<T>();
             let elem_size = mem::size_of::<T>();
+
+            // 因为当elem_size为0时我们设置了cap为usize::MAX，
+            // 这一步成立意味着Vec的容量溢出了
+            assert!(elem_size != 0, "capacity overflow");
+
+            let align = mem::align_of::<T>();
             let layout: Layout;
 
             let (new_cap, ptr) = if self.cap == 0 {
@@ -57,7 +63,9 @@ impl<T> RawVec<T> {
 
 impl<T> Drop for RawVec<T> {
     fn drop(&mut self) {
-        if self.cap != 0 {
+        let elem_size = mem::size_of::<T>();
+        // 不要释放零尺寸空间，因为它根本就没有分配过
+        if self.cap != 0 && elem_size != 0 {
             let align = mem::align_of::<T>();
             let elem_size = mem::size_of::<T>();
             let num_bytes = elem_size * self.cap;
